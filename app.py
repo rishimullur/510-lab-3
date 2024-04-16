@@ -46,7 +46,6 @@ st.subheader("A simple app to store and retrieve prompts")
 st.markdown("### Search, Filter, and View Existing Prompts")
 
 # Search bar
-# st.markdown("#### Search")
 search_query = st.text_input("Search prompts", key="search")
 st.markdown("###### Filter")
 filter_favorite = st.checkbox("Show Only Favorites", value=False, key="filter_favorite")
@@ -79,13 +78,14 @@ except (psycopg2.Error, Exception) as e:
 # Display prompts
 for prompt_id, title, prompt_text, is_favorite in prompts:
     with st.expander(title):
-        st.code(prompt_text)
+        st.text_area("Prompt", value=prompt_text, height=200, key=f"prompt_{prompt_id}", disabled=True)
         if is_favorite:
             st.write("Favorite ⭐")
 
         # Render template
-        additional_input = st.text_area("Additional Input", key=f"additional_input_{prompt_id}", height=100)
-        if st.button("Render Template", key=f"render_{prompt_id}"):
+        render_template_open = st.checkbox("Render Template", key=f"render_open_{prompt_id}", value=False)
+        if render_template_open:
+            additional_input = st.text_area("Additional Input", key=f"additional_input_{prompt_id}", height=100)
             try:
                 rendered_prompt = prompt_text + " " + additional_input
                 st.code(rendered_prompt, language="text")
@@ -102,19 +102,23 @@ for prompt_id, title, prompt_text, is_favorite in prompts:
             st.experimental_rerun()
 
         # Edit prompt
-        if st.button("Edit", key=f"edit_{prompt_id}"):
-            try:
-                cursor.execute("SELECT title, prompt, is_favorite FROM prompts WHERE id = %s", (prompt_id,))
-                title, prompt_text, is_favorite = cursor.fetchone()
-                edited_prompt = prompt_form(Prompt(prompt_id, title, prompt_text, is_favorite))
-                if edited_prompt:
-                    cursor.execute("UPDATE prompts SET title = %s, prompt = %s, is_favorite = %s WHERE id = %s",
-                                   (edited_prompt.title, edited_prompt.prompt, edited_prompt.is_favorite, edited_prompt.id))
+        if "edit_mode" not in st.session_state:
+            st.session_state.edit_mode = {}
+
+        if not st.session_state.edit_mode.get(prompt_id, False):
+            if st.button("Edit", key=f"edit_{prompt_id}"):
+                st.session_state.edit_mode[prompt_id] = True
+        else:
+            edited_prompt_text = st.text_area("Edit Prompt", value=prompt_text, height=200, key=f"edit_prompt_{prompt_id}")
+            if st.button("Save", key=f"save_{prompt_id}"):
+                try:
+                    cursor.execute("UPDATE prompts SET prompt = %s WHERE id = %s", (edited_prompt_text, prompt_id))
                     conn.commit()
                     st.success("Prompt updated successfully!")
-            except (psycopg2.Error, Exception) as e:
-                st.error(f"Error editing the prompt: {e}")
-            st.experimental_rerun()
+                    st.session_state.edit_mode[prompt_id] = False
+                except (psycopg2.Error, Exception) as e:
+                    st.error(f"Error updating the prompt: {e}")
+                st.experimental_rerun()
 
         # Delete prompt
         if st.button("Delete", key=f"delete_{prompt_id}"):
