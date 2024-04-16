@@ -46,34 +46,35 @@ st.subheader("A simple app to store and retrieve prompts")
 st.markdown("### Search, Filter, and View Existing Prompts")
 
 # Search bar
+# st.markdown("#### Search")
 search_query = st.text_input("Search prompts", key="search")
-filter_options = st.multiselect("Filter by", ["Title", "Prompt", "Favorite"])
+st.markdown("###### Filter")
+filter_favorite = st.checkbox("Show Only Favorites", value=False, key="filter_favorite")
 
 # Get prompts from the database
 query = "SELECT id, title, prompt, is_favorite FROM prompts"
 if search_query:
-    search_conditions = []
-    if "Title" in filter_options:
-        search_conditions.append("title ILIKE %s")
-    if "Prompt" in filter_options:
-        search_conditions.append("prompt ILIKE %s")
-    if "Favorite" in filter_options:
+    search_conditions = ["title ILIKE %s OR prompt ILIKE %s"]
+    if filter_favorite:
         search_conditions.append("is_favorite = true")
-    if search_conditions:
-        query += " WHERE " + " OR ".join(search_conditions)
-        try:
-            cursor.execute(query, [f"%{search_query}%"] * len(search_conditions))
-        except (psycopg2.Error, Exception) as e:
-            st.error(f"Error executing the search query: {e}")
-    else:
-        st.warning("No search conditions selected.")
+    query += " WHERE " + " AND ".join(search_conditions)
+    try:
+        cursor.execute(query, [f"%{search_query}%"] * 2)
+    except (psycopg2.Error, Exception) as e:
+        st.error(f"Error executing the search query: {e}")
 else:
+    if filter_favorite:
+        query += " WHERE is_favorite = true"
     try:
         cursor.execute(query)
     except (psycopg2.Error, Exception) as e:
         st.error(f"Error fetching prompts: {e}")
 
-prompts = cursor.fetchall()
+try:
+    prompts = cursor.fetchall()
+except (psycopg2.Error, Exception) as e:
+    st.error(f"Error fetching prompts: {e}")
+    prompts = []
 
 # Display prompts
 for prompt_id, title, prompt_text, is_favorite in prompts:
@@ -83,9 +84,11 @@ for prompt_id, title, prompt_text, is_favorite in prompts:
             st.write("Favorite ⭐")
 
         # Render template
+        additional_input = st.text_area("Additional Input", key=f"additional_input_{prompt_id}", height=100)
         if st.button("Render Template", key=f"render_{prompt_id}"):
             try:
-                st.code(prompt_text.format(**st.session_state), language="text")
+                rendered_prompt = prompt_text + " " + additional_input
+                st.code(rendered_prompt, language="text")
             except Exception as e:
                 st.error(f"Error rendering the template: {e}")
 
