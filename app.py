@@ -78,34 +78,33 @@ except (psycopg2.Error, Exception) as e:
 # Display prompts
 for prompt_id, title, prompt_text, is_favorite in prompts:
     with st.expander(title):
-        st.text_area("Prompt", value=prompt_text, height=200, key=f"prompt_{prompt_id}", disabled=True)
-        if is_favorite:
-            st.write("Favorite ⭐")
-
-        # Render template
-        render_template_open = st.checkbox("Render Template", key=f"render_open_{prompt_id}", value=False)
-        if render_template_open:
-            additional_input = st.text_area("Additional Input", key=f"additional_input_{prompt_id}", height=100)
-            try:
-                rendered_prompt = prompt_text + " " + additional_input
-                st.code(rendered_prompt, language="text")
-            except Exception as e:
-                st.error(f"Error rendering the template: {e}")
-
-        # Toggle favorite
-        if st.button("Toggle Favorite", key=f"favorite_{prompt_id}"):
-            try:
-                cursor.execute("UPDATE prompts SET is_favorite = NOT is_favorite WHERE id = %s", (prompt_id,))
-                conn.commit()
-            except (psycopg2.Error, Exception) as e:
-                st.error(f"Error toggling the favorite status: {e}")
-            st.experimental_rerun()
-
-        # Edit prompt
         if "edit_mode" not in st.session_state:
             st.session_state.edit_mode = {}
 
         if not st.session_state.edit_mode.get(prompt_id, False):
+            st.text_area("Prompt", value=prompt_text, height=200, key=f"prompt_{prompt_id}", disabled=True)
+            if is_favorite:
+                st.write("Favorite ⭐")
+
+            # Render template
+            additional_input = st.text_area("Use as template by adding additional text below", key=f"additional_input_{prompt_id}", height=100)
+            if st.button("Render Template", key=f"render_{prompt_id}"):
+                try:
+                    rendered_prompt = prompt_text + " " + additional_input
+                    st.code(rendered_prompt, language="text")
+                except Exception as e:
+                    st.error(f"Error rendering the template: {e}")
+
+            # Toggle favorite
+            if st.button("Toggle Favorite", key=f"favorite_{prompt_id}"):
+                try:
+                    cursor.execute("UPDATE prompts SET is_favorite = NOT is_favorite WHERE id = %s", (prompt_id,))
+                    conn.commit()
+                except (psycopg2.Error, Exception) as e:
+                    st.error(f"Error toggling the favorite status: {e}")
+                st.experimental_rerun()
+
+            # Edit prompt
             if st.button("Edit", key=f"edit_{prompt_id}"):
                 st.session_state.edit_mode[prompt_id] = True
         else:
